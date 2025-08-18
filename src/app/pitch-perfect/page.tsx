@@ -31,14 +31,18 @@ import { useRouter } from 'next/navigation';
 
 export default function PitchPerfectPage() {
   const { toast } = useToast();
-  const { user, isPremium } = useAuth();
+  const { user, isPremium, features } = useAuth();
   const router = useRouter();
 
+  // Check if pitch perfect is premium or free
+  const pitchPerfectFeature = features.find(f => f.id === 'pitch-perfect');
+  const isPitchPerfectPremium = pitchPerfectFeature?.isPremium ?? false;
+
   useEffect(() => {
-    if (user && !isPremium) {
+    if (user && isPitchPerfectPremium && !isPremium) {
       router.push('/premium');
     }
-  }, [user, isPremium, router]);
+  }, [user, isPremium, isPitchPerfectPremium, router]);
 
   const [emotion, setEmotion] = useState<Emotion>('Happy');
   const [phrase, setPhrase] = useState('');
@@ -185,7 +189,7 @@ export default function PitchPerfectPage() {
     }
   };
   
-  if (!user || !isPremium) {
+  if (!user || (isPitchPerfectPremium && !isPremium)) {
      return (
        <div className="flex items-center justify-center h-screen bg-background">
          <Loader2 className="w-16 h-16 animate-spin text-primary" />

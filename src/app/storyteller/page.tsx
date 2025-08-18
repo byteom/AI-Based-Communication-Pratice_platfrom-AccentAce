@@ -32,14 +32,18 @@ import { useRouter } from 'next/navigation';
 
 export default function StorytellerPage() {
   const { toast } = useToast();
-  const { user, isPremium } = useAuth();
+  const { user, isPremium, features } = useAuth();
   const router = useRouter();
 
+  // Check if storyteller is premium or free
+  const storytellerFeature = features.find(f => f.id === 'storyteller');
+  const isStorytellerPremium = storytellerFeature?.isPremium ?? false;
+
   useEffect(() => {
-    if (user && !isPremium) {
+    if (user && isStorytellerPremium && !isPremium) {
       router.push('/premium');
     }
-  }, [user, isPremium, router]);
+  }, [user, isPremium, isStorytellerPremium, router]);
 
   const [images, setImages] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -222,7 +226,7 @@ export default function StorytellerPage() {
       return 'Date not available';
   }
 
-  if (!user || !isPremium) {
+  if (!user || (isStorytellerPremium && !isPremium)) {
      return (
        <div className="flex items-center justify-center h-screen bg-background">
          <Loader2 className="w-16 h-16 animate-spin text-primary" />

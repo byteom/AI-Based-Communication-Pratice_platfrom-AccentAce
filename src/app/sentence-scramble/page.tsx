@@ -34,14 +34,18 @@ import { useRouter } from 'next/navigation';
 
 export default function SentenceScramblePage() {
   const { toast } = useToast();
-  const { user, isPremium } = useAuth();
+  const { user, isPremium, features } = useAuth();
   const router = useRouter();
 
+  // Check if sentence scramble is premium or free
+  const sentenceScrambleFeature = features.find(f => f.id === 'sentence-scramble');
+  const isSentenceScramblePremium = sentenceScrambleFeature?.isPremium ?? false;
+
   useEffect(() => {
-    if (user && !isPremium) {
+    if (user && isSentenceScramblePremium && !isPremium) {
       router.push('/premium');
     }
-  }, [user, isPremium, router]);
+  }, [user, isPremium, isSentenceScramblePremium, router]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -238,7 +242,7 @@ export default function SentenceScramblePage() {
     setIsHistoryOpen(false);
   }
   
-  if (!user || !isPremium) {
+  if (!user || (isSentenceScramblePremium && !isPremium)) {
      return (
        <div className="flex items-center justify-center h-screen bg-background">
          <Loader2 className="w-16 h-16 animate-spin text-primary" />

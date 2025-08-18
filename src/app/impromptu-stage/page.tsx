@@ -41,19 +41,23 @@ type Stage = 'idle' | 'thinking' | 'speaking' | 'finished';
 
 export default function ImpromptuStagePage() {
   const { toast } = useToast();
-  const { user, isPremium } = useAuth();
+  const { user, isPremium, features } = useAuth();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+
+  // Check if impromptu stage is premium or free
+  const impromptuStageFeature = features.find(f => f.id === 'impromptu-stage');
+  const isImpromptuStagePremium = impromptuStageFeature?.isPremium ?? false;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (user && !isPremium) {
+    if (user && isImpromptuStagePremium && !isPremium) {
       router.push('/premium');
     }
-  }, [user, isPremium, router]);
+  }, [user, isPremium, isImpromptuStagePremium, router]);
   
   const [stage, setStage] = useState<Stage>('idle');
   const [topic, setTopic] = useState('');
@@ -432,7 +436,7 @@ export default function ImpromptuStagePage() {
     }
   }
   
-  if (!user || !isPremium) {
+  if (!user || (isImpromptuStagePremium && !isPremium)) {
      return (
        <div className="flex items-center justify-center h-screen bg-background">
          {mounted ? (

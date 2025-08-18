@@ -28,14 +28,18 @@ import { useRouter } from 'next/navigation';
 
 export default function PronunciationPracticePage() {
   const { toast } = useToast();
-  const { user, isPremium } = useAuth();
+  const { user, isPremium, features } = useAuth();
   const router = useRouter();
 
+  // Check if pronunciation practice is premium or free
+  const pronunciationFeature = features.find(f => f.id === 'pronunciation-practice');
+  const isPronunciationPremium = pronunciationFeature?.isPremium ?? false;
+
   useEffect(() => {
-    if (user && !isPremium) {
+    if (user && isPronunciationPremium && !isPremium) {
       router.push('/premium');
     }
-  }, [user, isPremium, router]);
+  }, [user, isPremium, isPronunciationPremium, router]);
   
   const [language, setLanguage] = useState<Language>('English');
   const [accent, setAccent] = useState<Accent>('American');
@@ -257,7 +261,7 @@ export default function PronunciationPracticePage() {
 
   const availableAccents = languages[language] || [];
   
-  if (!user || !isPremium) {
+  if (!user || (isPronunciationPremium && !isPremium)) {
      return (
        <div className="flex items-center justify-center h-screen bg-background">
          <Loader2 className="w-16 h-16 animate-spin text-primary" />
