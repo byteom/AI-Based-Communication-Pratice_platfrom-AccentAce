@@ -10,6 +10,9 @@ import Script from 'next/script';
 export const metadata: Metadata = {
   title: 'AccentAce',
   description: 'Your AI-powered communication coach for exam excellence.',
+  icons: {
+    icon: '/favicon.svg?v=2',
+  },
 };
 
 export default function RootLayout({
@@ -25,6 +28,7 @@ export default function RootLayout({
           src="https://checkout.razorpay.com/v1/checkout.js"
           strategy="beforeInteractive"
         />
+        <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
       </head>
       <body className={`antialiased h-full flex flex-col`}>
         <AuthProvider>
