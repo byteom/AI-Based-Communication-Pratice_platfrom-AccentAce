@@ -99,7 +99,8 @@ export default function ImpromptuStagePage() {
     setRecordedAudioUrl(null);
     setCurrentHistoryId(null);
     try {
-      const { topic: newTopic } = await generateImpromptuTopic();
+      const pastTopics = history.map(h => h.topic);
+      const { topic: newTopic } = await generateImpromptuTopic({ history: pastTopics });
       setTopic(newTopic);
       const historyId = await addHistoryItem({ topic: newTopic });
       setCurrentHistoryId(historyId);

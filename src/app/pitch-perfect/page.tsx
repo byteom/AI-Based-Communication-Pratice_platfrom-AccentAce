@@ -86,7 +86,8 @@ export default function PitchPerfectPage() {
     resetPractice();
     setIsLoading(true);
     try {
-      const { phrase: newPhrase } = await generateEmotionPhrase({ emotion });
+      const pastPhrases = history.map(h => h.phrase);
+      const { phrase: newPhrase } = await generateEmotionPhrase({ emotion, history: pastPhrases });
       setPhrase(newPhrase);
       const id = await addHistoryItem({ phrase: newPhrase, emotion });
       setCurrentHistoryId(id);

@@ -17,6 +17,7 @@ import type { Difficulty } from '@/lib/accent-ace-config';
 const GeneratePhraseInputSchema = z.object({
   language: z.string().describe('The language for the practice phrase.'),
   difficulty: z.custom<Difficulty>().describe('The difficulty level of the phrase.'),
+  history: z.array(z.string()).optional().describe('A list of previously generated phrases to avoid repeating.'),
 });
 export type GeneratePhraseInput = z.infer<typeof GeneratePhraseInputSchema>;
 
@@ -42,6 +43,14 @@ const prompt = ai.definePrompt({
   - Hard: 13-15 words, advanced vocabulary and structure.
 
   The phrase should be no more than 15 words.
+
+  {{#if history}}
+  Please generate a new phrase that is different from these previous ones:
+  {{#each history}}
+  - {{{this}}}
+  {{/each}}
+  {{/if}}
+
   Return just the phrase itself. Do not include any regional dialect or slang.
   `,
 });

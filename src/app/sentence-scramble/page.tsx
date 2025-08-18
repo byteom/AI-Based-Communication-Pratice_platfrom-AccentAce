@@ -88,7 +88,8 @@ export default function SentenceScramblePage() {
     setIsLoading(true);
     resetState();
     try {
-      const { jumbled, original } = await generateScrambledSentence();
+      const pastSentences = history.map(h => h.correctSentence);
+      const { jumbled, original } = await generateScrambledSentence({ history: pastSentences });
       setScrambledSentence(jumbled);
       setCorrectSentence(original);
       const audioResult = await generateAudio({ language: 'English', accent: 'American', text: jumbled });

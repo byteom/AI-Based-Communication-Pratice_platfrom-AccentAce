@@ -14,6 +14,7 @@ import type { Emotion } from '@/lib/accent-ace-config';
 
 const GenerateEmotionPhraseInputSchema = z.object({
   emotion: z.custom<Emotion>().describe('The target emotion for the phrase.'),
+  history: z.array(z.string()).optional().describe('A list of previously generated phrases to avoid repeating.'),
 });
 export type GenerateEmotionPhraseInput = z.infer<typeof GenerateEmotionPhraseInputSchema>;
 
@@ -34,6 +35,13 @@ const prompt = ai.definePrompt({
     Generate a single, common, SFW (safe for work) English sentence that someone would realistically say with a "{{emotion}}" tone.
     The sentence should be between 7 and 15 words long.
     
+    {{#if history}}
+    Please generate a new sentence that is different from these previous ones:
+    {{#each history}}
+    - {{{this}}}
+    {{/each}}
+    {{/if}}
+
     Return just the sentence itself.
   `,
 });

@@ -10,18 +10,25 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
+const GenerateImpromptuTopicInputSchema = z.object({
+    history: z.array(z.string()).optional().describe('A list of previously generated topics to avoid repeating.')
+});
+export type GenerateImpromptuTopicInput = z.infer<typeof GenerateImpromptuTopicInputSchema>;
+
+
 const GenerateImpromptuTopicOutputSchema = z.object({
   topic: z.string().describe('A random, engaging topic for an impromptu speech.'),
 });
 
 export type GenerateImpromptuTopicOutput = z.infer<typeof GenerateImpromptuTopicOutputSchema>;
 
-export async function generateImpromptuTopic(): Promise<GenerateImpromptuTopicOutput> {
-  return generateImpromptuTopicFlow();
+export async function generateImpromptuTopic(input?: GenerateImpromptuTopicInput): Promise<GenerateImpromptuTopicOutput> {
+  return generateImpromptuTopicFlow(input || {});
 }
 
 const prompt = ai.definePrompt({
   name: 'generateImpromptuTopicPrompt',
+  input: { schema: GenerateImpromptuTopicInputSchema },
   output: { schema: GenerateImpromptuTopicOutputSchema },
   prompt: `You are an AI for a public speaking practice app. 
     Generate a single, interesting, and SFW (safe for work) topic for an impromptu speech. 
@@ -32,6 +39,13 @@ const prompt = ai.definePrompt({
     - "Describe your favorite place in the world."
     - "If you could have any superpower, what would it be and how would you use it?"
     - "Talk about a book or movie that has had a big impact on you."
+
+    {{#if history}}
+    Please generate a new topic that is different from these previous ones:
+    {{#each history}}
+    - {{{this}}}
+    {{/each}}
+    {{/if}}
   `,
 });
 
@@ -39,10 +53,11 @@ const prompt = ai.definePrompt({
 const generateImpromptuTopicFlow = ai.defineFlow(
   {
     name: 'generateImpromptuTopicFlow',
+    inputSchema: GenerateImpromptuTopicInputSchema,
     outputSchema: GenerateImpromptuTopicOutputSchema,
   },
-  async () => {
-    const { output } = await prompt();
+  async (input) => {
+    const { output } = await prompt(input);
     return output!;
   }
 );

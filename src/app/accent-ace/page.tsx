@@ -110,7 +110,8 @@ export default function AccentAcePage() {
     resetPracticeState();
     setIsGenerating(true);
     try {
-      const phraseResult = await generatePhrase({ language, difficulty });
+      const pastPhrases = history.map(h => h.phrase);
+      const phraseResult = await generatePhrase({ language, difficulty, history: pastPhrases });
       setPhrase(phraseResult.phrase);
       
       const audioResult = await generateAudio({ language, accent, text: phraseResult.phrase });
@@ -229,8 +230,8 @@ export default function AccentAcePage() {
   };
   
   const getWordColorClass = (accuracy: number) => {
-    if (accuracy > 80) return 'bg-green-500/20 text-green-300/90 rounded-md p-1 transition-all duration-300 animate-pulse-once';
-    if (accuracy > 50) return 'bg-yellow-500/10 text-yellow-300/90 rounded-md p-1';
+    if (accuracy > 80) return 'bg-accent/20 text-accent-foreground/90 rounded-md p-1 transition-all duration-300 animate-pulse-once';
+    if (accuracy > 50) return 'bg-primary/10 text-primary-foreground/90 rounded-md p-1';
     return 'bg-destructive/20 text-destructive/90 rounded-md p-1';
   };
   
@@ -264,7 +265,7 @@ export default function AccentAcePage() {
             <h1 className="text-3xl font-bold font-headline tracking-tight">Accent Ace</h1>
           </div>
           <Button variant="outline" onClick={() => setIsHistoryOpen(true)}>
-            <History className="mr-2 h-4 w-4" />
+            <History className="mr-2" />
             Practice History
           </Button>
         </header>
@@ -306,7 +307,7 @@ export default function AccentAcePage() {
                 </div>
                 <div>
                   <label htmlFor="accent-select" className="text-sm font-medium">Accent</label>
-                  <Select value={accent} onValueChange={handleAccentChange} disabled={availableAccents.length === 0}>
+                  <Select value={accent} onValueChange={handleAccentChange}>
                     <SelectTrigger id="accent-select" className="w-full">
                       <SelectValue placeholder="Select accent" />
                     </SelectTrigger>
@@ -400,7 +401,7 @@ export default function AccentAcePage() {
                     <div className="space-y-6">
                        <div>
                         <h3 className="text-lg font-semibold mb-2">Your Pronunciation</h3>
-                        <div className="text-lg p-4 bg-muted/50 rounded-lg space-x-2 flex flex-wrap gap-2">
+                        <div className="text-lg p-4 bg-muted/50 rounded-lg space-x-2">
                           {analysis.detailedFeedback.map((word, index) => (
                              <TooltipProvider key={index} delayDuration={100}>
                                <Tooltip>
