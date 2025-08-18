@@ -5,10 +5,21 @@ import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Mic, Presentation, StopCircle, Waves, BrainCircuit, Timer, History } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import { Mic } from 'lucide-react';
+import { Presentation } from 'lucide-react';
+import { StopCircle } from 'lucide-react';
+import { Waves } from 'lucide-react';
+import { BrainCircuit } from 'lucide-react';
+import { Timer } from 'lucide-react';
+import { History } from 'lucide-react';
 import { generateImpromptuTopic } from '@/ai/flows/generate-impromptu-topic';
-import type { ImpromptuHistoryItem } from '@/lib/types';
+// Direct speech analysis
+import { analyzeSpeech } from '@/ai/flows/analyze-speech';
+import { generateAudio } from '@/ai/flows/generate-audio';
+import type { ImpromptuHistoryItem, AnalysisHistoryItem } from '@/lib/types';
 import { addHistoryItem, getHistoryItems, updateHistoryItem } from '@/services/impromptuHistoryService';
+import { addAnalysisHistoryItem, getAnalysisHistoryItems } from '@/services/analysisHistoryService';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +43,11 @@ export default function ImpromptuStagePage() {
   const { toast } = useToast();
   const { user, isPremium } = useAuth();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (user && !isPremium) {
@@ -44,6 +60,7 @@ export default function ImpromptuStagePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [rawTextResponse, setRawTextResponse] = useState<string | null>(null); // New state for transcribed text
   
   const [timer, setTimer] = useState(60);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -52,6 +69,11 @@ export default function ImpromptuStagePage() {
 
   const [history, setHistory] = useState<ImpromptuHistoryItem[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisHistoryItem | null>(null);
+  const [ttsAudioDataUri, setTtsAudioDataUri] = useState<string | null>(null);
+  const [viewingHistoryAnalysis, setViewingHistoryAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     if(user) loadHistory();
@@ -70,6 +92,40 @@ export default function ImpromptuStagePage() {
       });
     }
   }
+
+  // Add debug function for analysis loading
+  const loadAnalysisForHistory = async (analysisId: string) => {
+    try {
+      const analysisItems = await getAnalysisHistoryItems();
+      const foundAnalysis = analysisItems.find(a => a.id === analysisId);
+      
+      if (foundAnalysis) {
+        setAnalysisResult(foundAnalysis);
+        setViewingHistoryAnalysis(analysisId);
+        
+        // Scroll to analysis section
+        setTimeout(() => {
+          const analysisSection = document.getElementById('analysis-section');
+          if (analysisSection) {
+            analysisSection.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 100);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Analysis Not Found",
+          description: `Analysis with ID ${analysisId} was not found in the database.`,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to load analysis", e);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `Failed to load analysis: ${e instanceof Error ? e.message : 'Unknown error'}`,
+      });
+    }
+  };
 
   const startTimer = (duration: number, onEnd: () => void) => {
     setTimer(duration);
@@ -98,6 +154,9 @@ export default function ImpromptuStagePage() {
     setTopic('');
     setRecordedAudioUrl(null);
     setCurrentHistoryId(null);
+    setAnalysisResult(null);
+    setViewingHistoryAnalysis(null);
+    setTtsAudioDataUri(null);
     try {
       const pastTopics = history.map(h => h.topic);
       const { topic: newTopic } = await generateImpromptuTopic({ history: pastTopics });
@@ -180,6 +239,124 @@ export default function ImpromptuStagePage() {
     }
   };
 
+  const blobToDataUri = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const objectUrlToDataUri = async (objectUrl: string): Promise<string> => {
+    const response = await fetch(objectUrl);
+    const blob = await response.blob();
+    return blobToDataUri(blob);
+  };
+
+  const handleAnalyzeSpeech = async () => {
+    if (!recordedAudioUrl || !currentHistoryId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No recorded speech to analyze.",
+      });
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    
+    try {
+      const dataUri = await objectUrlToDataUri(recordedAudioUrl);
+      const full = await analyzeSpeech({ audioDataUri: dataUri, topic });
+      setRawTextResponse(full.transcript);
+
+      // TTS of corrected text (if present)
+      try {
+        const { audioDataUri } = await generateAudio({
+          text: full.grammar.correctedText || full.transcript,
+          language: 'English',
+          accent: 'General American',
+        });
+        setTtsAudioDataUri(audioDataUri);
+      } catch (e) {
+        console.warn('TTS generation failed', e);
+      }
+
+      // Clean data to remove undefined values before saving to Firestore
+      const cleanAnalysisData = {
+        userResponse: full.transcript,
+        analysis: full.summary,
+        sentiment: 'neutral',
+        keywords: [],
+        correctedText: full.grammar.correctedText,
+        grammarAccuracy: full.grammar.accuracy,
+        grammarMistakes: full.grammar.mistakes,
+        pronunciation: {
+          overallAccuracy: full.pronunciation.overallAccuracy,
+          detailedFeedback: full.pronunciation.detailedFeedback,
+          suggestions: full.pronunciation.suggestions,
+          accentNotes: full.pronunciation.accentNotes,
+        },
+        topicalityAdherence: full.topicality.adherence,
+        topicalityExplanation: full.topicality.explanation,
+        topicalityStrongPoints: full.topicality.strongPoints || [],
+        topicalityMissedPoints: full.topicality.missedPoints || [],
+        delivery: {
+          wordsPerMinute: full.delivery.wordsPerMinute || null,
+          fillerWords: full.delivery.fillerWords || [],
+          structureFeedback: full.delivery.structureFeedback || null,
+          pacingFeedback: full.delivery.pacingFeedback || null,
+        },
+      };
+
+      // Remove undefined values recursively
+      const removeUndefined = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+        if (typeof obj !== 'object') return obj;
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefined).filter(item => item !== null);
+        }
+        const cleaned: any = {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (value !== undefined) {
+            cleaned[key] = removeUndefined(value);
+          }
+        }
+        return cleaned;
+      };
+
+      const cleanData = removeUndefined(cleanAnalysisData);
+      const analysisHistoryId = await addAnalysisHistoryItem(cleanData);
+
+      // Update the ImpromptuHistoryItem with the analysisId
+      await updateHistoryItem(currentHistoryId, { analysisId: analysisHistoryId, rawTextResponse: full.transcript });
+      await loadHistory();
+
+      setAnalysisResult({
+        id: analysisHistoryId,
+        userId: user!.uid,
+        ...cleanData,
+        createdAt: new Date() as any,
+      });
+
+      toast({
+        title: "Analysis Complete",
+        description: "Detailed results are shown below.",
+      });
+
+    } catch (error) {
+      console.error('Error analyzing speech:', error);
+      toast({
+        variant: "destructive",
+        title: "Analysis Error",
+        description: "Failed to analyze speech. Please try again.",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const renderContent = () => {
     switch(stage) {
@@ -190,6 +367,20 @@ export default function ImpromptuStagePage() {
                 <h2 className="text-2xl font-semibold">Thinking Time</h2>
                 <p className="text-muted-foreground">You have one minute to prepare your thoughts.</p>
                 <div className="text-6xl font-bold font-mono text-primary">{timer}</div>
+                <Button 
+                  onClick={() => {
+                    if (timerIntervalRef.current) {
+                      clearInterval(timerIntervalRef.current);
+                    }
+                    setStage('speaking');
+                    startRecording();
+                    startTimer(60, stopRecording);
+                  }}
+                  variant="outline"
+                  className="mt-4"
+                >
+                  Skip Time & Start Speaking
+                </Button>
             </div>
         );
       case 'speaking':
@@ -217,9 +408,15 @@ export default function ImpromptuStagePage() {
                 <h2 className="text-2xl font-semibold">Well Done!</h2>
                 <p className="text-muted-foreground">You can listen to your speech below.</p>
                 {recordedAudioUrl && <audio controls src={recordedAudioUrl} className="w-full max-w-md mx-auto" />}
-                <Button onClick={handleGetTopic} disabled={isLoading}>
-                    {isLoading ? <Loader2 className="animate-spin" /> : 'Try a New Topic'}
-                </Button>
+                <div className="flex flex-col sm:flex-row justify-center gap-2 pt-4">
+                    <Button onClick={handleAnalyzeSpeech} disabled={isAnalyzing || !recordedAudioUrl}>
+                        {isAnalyzing ? <Loader2 className="animate-spin mr-2" /> : <BrainCircuit className="mr-2" />}
+                        {isAnalyzing ? 'Analyzing...' : 'Analyze Speech'}
+                    </Button>
+                    <Button onClick={handleGetTopic} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="animate-spin" /> : 'Try a New Topic'}
+                    </Button>
+                </div>
             </div>
         );
       case 'idle':
@@ -238,10 +435,126 @@ export default function ImpromptuStagePage() {
   if (!user || !isPremium) {
      return (
        <div className="flex items-center justify-center h-screen bg-background">
-         <Loader2 className="w-16 h-16 animate-spin text-primary" />
+         {mounted ? (
+           <Loader2 className="w-16 h-16 animate-spin text-primary" />
+         ) : (
+           <div className="w-16 h-16 bg-muted rounded-full" />
+         )}
        </div>
      );
   }
+
+  // Analysis section - shown regardless of stage when analysisResult exists
+  const renderAnalysisSection = () => {
+    if (!analysisResult) return null;
+    
+    return (
+      <div id="analysis-section" className="text-left max-w-2xl mx-auto mt-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg">
+            {viewingHistoryAnalysis ? 'Historical Analysis' : 'Speech Analysis Results'}
+          </h3>
+          {viewingHistoryAnalysis && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAnalysisResult(null);
+                setViewingHistoryAnalysis(null);
+              }}
+            >
+              Close Analysis
+            </Button>
+          )}
+        </div>
+       <div>
+         <h3 className="font-semibold text-lg">Transcript (what you said)</h3>
+         <p className="text-muted-foreground">{analysisResult.userResponse}</p>
+       </div>
+       {analysisResult.correctedText && (
+         <div>
+           <h3 className="font-semibold text-lg">Corrected Version</h3>
+           <p>{analysisResult.correctedText}</p>
+         </div>
+       )}
+       <div>
+         <h3 className="font-semibold text-lg">Grammar</h3>
+         {typeof analysisResult.grammarAccuracy === 'number' && (
+           <p className="mb-2">Accuracy: {Math.round(analysisResult.grammarAccuracy)}%</p>
+         )}
+         {analysisResult.grammarMistakes && analysisResult.grammarMistakes.length > 0 ? (
+           <ul className="list-disc pl-6 space-y-2">
+             {analysisResult.grammarMistakes.map((m, i) => (
+               <li key={i}>
+                 <div className="font-medium">{m.mistake}</div>
+                 <div className="text-sm text-muted-foreground">{m.explanation}</div>
+                 <div className="text-sm">Correction: {m.correction}</div>
+               </li>
+             ))}
+           </ul>
+         ) : (
+           <p className="text-muted-foreground">No grammar issues detected.</p>
+         )}
+       </div>
+       {analysisResult.pronunciation && (
+         <div>
+           <h3 className="font-semibold text-lg">Pronunciation</h3>
+           <p className="mb-2">Overall Accuracy: {Math.round(analysisResult.pronunciation.overallAccuracy)}%</p>
+           <div className="text-sm text-muted-foreground mb-2">{analysisResult.pronunciation.suggestions}</div>
+           {analysisResult.pronunciation.detailedFeedback && (
+             <div className="overflow-x-auto">
+               <table className="w-full text-sm">
+                 <thead>
+                   <tr className="text-left">
+                     <th className="pr-3 py-1">Word</th>
+                     <th className="pr-3 py-1">Accuracy</th>
+                     <th className="py-1">Feedback</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {analysisResult.pronunciation.detailedFeedback.map((w, i) => (
+                     <tr key={i} className="border-t">
+                       <td className="pr-3 py-1">{w.word}</td>
+                       <td className="pr-3 py-1">{Math.round(w.pronunciationAccuracy)}%</td>
+                       <td className="py-1">{w.errorDetails}</td>
+                     </tr>
+                   ))}
+                 </tbody>
+               </table>
+             </div>
+           )}
+         </div>
+       )}
+       {ttsAudioDataUri && (
+         <div>
+           <h3 className="font-semibold text-lg">Listen to a Correct Reading</h3>
+           <audio controls src={ttsAudioDataUri} className="w-full" />
+         </div>
+       )}
+       <div>
+         <h3 className="font-semibold text-lg">Summary & Suggestions</h3>
+         <div className="text-sm text-muted-foreground">{analysisResult.analysis}</div>
+         {(typeof analysisResult.topicalityAdherence === 'number' || analysisResult.topicalityExplanation) && (
+           <div className="mt-4">
+             <h4 className="font-medium">Topicality</h4>
+             {typeof analysisResult.topicalityAdherence === 'number' && (
+               <p>Adherence: {Math.round(analysisResult.topicalityAdherence)}%</p>
+             )}
+             {analysisResult.topicalityExplanation && (
+               <p className="text-sm text-muted-foreground">{analysisResult.topicalityExplanation}</p>
+             )}
+             {analysisResult.topicalityStrongPoints && analysisResult.topicalityStrongPoints.length > 0 && (
+               <p className="text-sm">Strong Points: {analysisResult.topicalityStrongPoints.join(', ')}</p>
+             )}
+             {analysisResult.topicalityMissedPoints && analysisResult.topicalityMissedPoints.length > 0 && (
+               <p className="text-sm">Missed Points: {analysisResult.topicalityMissedPoints.join(', ')}</p>
+             )}
+           </div>
+         )}
+       </div>
+     </div>
+    );
+  };
 
 
   return (
@@ -277,7 +590,7 @@ export default function ImpromptuStagePage() {
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-4 px-1">
-                        <p className="text-muted-foreground">{item.topic}</p>
+                        <p className="text-muted-foreground">Topic: {item.topic}</p>
                         {item.recordedAudioUrl && (
                           <Button
                             size="sm"
@@ -286,6 +599,20 @@ export default function ImpromptuStagePage() {
                           >
                             <Mic className="mr-2 h-4 w-4" />
                             Listen to Speech
+                          </Button>
+                        )}
+                        {item.analysisId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              if (item.analysisId) {
+                                await loadAnalysisForHistory(item.analysisId);
+                              }
+                            }}
+                          >
+                            <BrainCircuit className="mr-2 h-4 w-4" />
+                            View AI Analysis
                           </Button>
                         )}
                       </div>
@@ -297,9 +624,11 @@ export default function ImpromptuStagePage() {
           </DialogContent>
         </Dialog>
 
+        {/* AI Analysis Dialog */}
+        {/* Removed popup-based analysis display in favor of inline rendering under the finished section */}
 
         <main className="max-w-4xl mx-auto mt-8">
-            <Card>
+             <Card>
                 <CardHeader className="text-center">
                     <CardTitle>The Topic is...</CardTitle>
                     {topic ? (
@@ -312,6 +641,9 @@ export default function ImpromptuStagePage() {
                     {renderContent()}
                 </CardContent>
             </Card>
+
+            {/* Analysis section - shown regardless of stage when analysisResult exists */}
+            {renderAnalysisSection()}
         </main>
       </div>
     </div>

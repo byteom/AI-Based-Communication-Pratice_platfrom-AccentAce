@@ -38,8 +38,8 @@ export type AccentAceHistoryItem = {
   referenceAudioUrl: string;
   recordedAudioUrl?: string;
   analysis?: AnalyzeAccentOutput;
-  createdAt: Timestamp | string; 
-  updatedAt?: Timestamp | string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 };
 
 export type SentenceScrambleHistoryItem = {
@@ -50,8 +50,8 @@ export type SentenceScrambleHistoryItem = {
   scrambledAudioUrl: string;
   recordedAudioUrl?: string;
   analysis?: AnalyzeAccentOutput;
-  createdAt: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export type ImpromptuHistoryItem = {
@@ -59,9 +59,39 @@ export type ImpromptuHistoryItem = {
   userId: string;
   topic: string;
   recordedAudioUrl?: string;
-  createdAt: Timestamp | string; 
-  updatedAt?: Timestamp | string;
-}
+  rawTextResponse?: string; // New field for transcribed text
+  analysisId?: string; // Link to the analysis history item
+  createdAt: Timestamp;
+};
+
+export type AnalysisHistoryItem = {
+  id: string;
+  userId: string;
+  userResponse: string;
+  analysis: string;
+  sentiment: string;
+  keywords: string[];
+  correctedText?: string;
+  grammarAccuracy?: number;
+  grammarMistakes?: { mistake: string; explanation: string; correction: string }[];
+  pronunciation?: {
+    overallAccuracy: number;
+    detailedFeedback: { word: string; pronunciationAccuracy: number; errorDetails: string }[];
+    suggestions: string;
+    accentNotes?: string;
+  };
+  topicalityAdherence?: number;
+  topicalityExplanation?: string;
+  topicalityStrongPoints?: string[];
+  topicalityMissedPoints?: string[];
+  delivery?: {
+    wordsPerMinute?: number;
+    fillerWords?: string[];
+    structureFeedback?: string;
+    pacingFeedback?: string;
+  };
+  createdAt: Timestamp;
+};
 
 export type PitchPerfectHistoryItem = {
   id: string;
@@ -70,8 +100,8 @@ export type PitchPerfectHistoryItem = {
   emotion: Emotion;
   recordedAudioUrl?: string;
   analysis?: AnalyzeToneOutput;
-  createdAt: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 };
 
 export type StorytellerHistoryItem = {
@@ -80,6 +110,6 @@ export type StorytellerHistoryItem = {
   images: string[];
   recordedAudioUrl?: string;
   analysis?: AnalyzeStoryOutput;
-  createdAt: Timestamp | string;
-  updatedAt?: Timestamp | string;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
 };

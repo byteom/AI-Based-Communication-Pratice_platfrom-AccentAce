@@ -54,11 +54,13 @@ export async function getHistoryItems(): Promise<ImpromptuHistoryItem[]> {
     const items = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ImpromptuHistoryItem));
 
     // Sort items by createdAt date descending on the client-side
-    return items.sort((a, b) => {
+    const sortedItems = items.sort((a, b) => {
         const dateA = a.createdAt ? (a.createdAt as any).toDate ? (a.createdAt as any).toDate() : new Date(a.createdAt as string) : new Date(0);
         const dateB = b.createdAt ? (b.createdAt as any).toDate ? (b.createdAt as any).toDate() : new Date(b.createdAt as string) : new Date(0);
         return dateB.getTime() - dateA.getTime();
     });
+
+    return sortedItems;
 
   } catch (error) {
     console.error("Error getting documents: ", error);

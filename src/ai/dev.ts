@@ -10,3 +10,5 @@ import '@/ai/flows/generate-emotion-phrase.ts';
 import '@/ai/flows/analyze-tone.ts';
 import '@/ai/flows/generate-story-images.ts';
 import '@/ai/flows/analyze-story.ts';
+import '@/ai/flows/analyze-speech.ts';
+import '@/ai/flows/analyze-response.ts';
